@@ -1,0 +1,17 @@
+{{- if and .Values.flagger.enabled .Values.certManager.enabled .Values.ingress.tls.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "task-manager.backend.fullname" . }}-api
+  namespace: {{ include "task-manager.namespace" . }}
+  labels:
+    {{- include "task-manager.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  secretName: {{ .Values.flagger.api.tls.secretName }}
+  dnsNames:
+    - {{ .Values.flagger.api.host }}
+  issuerRef:
+    name: {{ .Values.certManager.issuerRef.name }}
+    kind: {{ .Values.certManager.issuerRef.kind }}
+{{- end }}

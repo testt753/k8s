@@ -1,0 +1,56 @@
+{{- if .Values.frontend.ab.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "task-manager.frontend.canary.fullname" . }}
+  namespace: {{ include "task-manager.namespace" . }}
+  labels:
+    {{- include "task-manager.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/variant: {{ .Values.frontend.ab.variant | quote }}
+spec:
+  replicas: {{ .Values.frontend.ab.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "task-manager.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: frontend
+      app.kubernetes.io/variant: {{ .Values.frontend.ab.variant | quote }}
+  template:
+    metadata:
+      labels:
+        {{- include "task-manager.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: frontend
+        app.kubernetes.io/variant: {{ .Values.frontend.ab.variant | quote }}
+    spec:
+      serviceAccountName: {{ include "task-manager.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.frontend.podSecurityContext | nindent 8 }}
+      containers:
+        - name: frontend
+          image: {{ printf "%s:%s" .Values.frontend.ab.image.repository .Values.frontend.ab.image.tag }}
+          imagePullPolicy: {{ .Values.frontend.ab.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.frontend.containerPort }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.frontend.probes.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.frontend.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.frontend.probes.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.frontend.probes.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.frontend.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.frontend.probes.periodSeconds }}
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.frontend.securityContext | nindent 12 }}
+{{- end }}

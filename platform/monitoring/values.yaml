@@ -1,0 +1,27 @@
+grafana:
+  adminPassword: admin
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    annotations:
+      cert-manager.io/cluster-issuer: "selfsigned-clusterissuer"
+    hosts:
+      - grafana.127.0.0.1.sslip.io
+    path: /
+    pathType: Prefix
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.127.0.0.1.sslip.io
+  defaultDashboardsTimezone: Europe/Paris
+
+prometheus:
+  ingress:
+    enabled: false
+
+alertmanager:
+  ingress:
+    enabled: false
+
+prometheus-node-exporter:
+  enabled: false

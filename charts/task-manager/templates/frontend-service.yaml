@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "task-manager.frontend.fullname" . }}
+  namespace: {{ include "task-manager.namespace" . }}
+  labels:
+    {{- include "task-manager.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/variant: {{ .Values.frontend.variant | quote }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "task-manager.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/variant: {{ .Values.frontend.variant | quote }}
+  ports:
+    - name: http
+      port: {{ .Values.frontend.service.port }}
+      targetPort: http
+      protocol: TCP

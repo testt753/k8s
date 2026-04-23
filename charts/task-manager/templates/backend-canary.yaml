@@ -1,0 +1,51 @@
+{{- if .Values.flagger.enabled }}
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: {{ include "task-manager.backend.fullname" . }}
+  namespace: {{ include "task-manager.namespace" . }}
+  labels:
+    {{- include "task-manager.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  provider: {{ .Values.flagger.provider }}
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "task-manager.backend.fullname" . }}
+  {{- if .Values.backend.autoscaling.enabled }}
+  autoscalerRef:
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    name: {{ include "task-manager.backend.fullname" . }}
+    primaryScalerReplicas:
+      minReplicas: {{ .Values.flagger.autoscaler.primaryMinReplicas }}
+      maxReplicas: {{ .Values.flagger.autoscaler.primaryMaxReplicas }}
+  {{- end }}
+  progressDeadlineSeconds: {{ .Values.flagger.progressDeadlineSeconds }}
+  service:
+    name: {{ include "task-manager.backend.fullname" . }}
+    port: {{ .Values.backend.service.port }}
+    targetPort: {{ .Values.backend.containerPort }}
+  analysis:
+    interval: {{ .Values.flagger.analysis.interval }}
+    threshold: {{ .Values.flagger.analysis.threshold }}
+    maxWeight: {{ .Values.flagger.analysis.maxWeight }}
+    stepWeight: {{ .Values.flagger.analysis.stepWeight }}
+    webhooks:
+      - name: acceptance-test
+        type: pre-rollout
+        url: http://{{ .Values.flagger.loadTester.name }}.{{ include "task-manager.namespace" . }}/
+        timeout: {{ .Values.flagger.webhooks.acceptanceTestTimeout }}
+        metadata:
+          type: bash
+          cmd: {{ printf "curl -fsS http://%s-canary.%s/api/health/ready" (include "task-manager.backend.fullname" .) (include "task-manager.namespace" .) | quote }}
+      - name: load-test
+        type: rollout
+        url: http://{{ .Values.flagger.loadTester.name }}.{{ include "task-manager.namespace" . }}/
+        timeout: {{ .Values.flagger.webhooks.loadTestTimeout }}
+        metadata:
+          type: cmd
+          cmd: {{ printf "hey -z %s -q %v -c %v http://%s-canary.%s/api/tasks" .Values.flagger.webhooks.loadTestDuration .Values.flagger.webhooks.loadTestQueriesPerSecond .Values.flagger.webhooks.loadTestConcurrency (include "task-manager.backend.fullname" .) (include "task-manager.namespace" .) | quote }}
+          logCmdOutput: "true"
+{{- end }}

@@ -1,0 +1,219 @@
+nameOverride: ""
+fullnameOverride: ""
+
+namespace:
+  create: true
+  name: task-manager
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+backend:
+  replicaCount: 2
+  image:
+    repository: chamine/taskmanager-backend
+    tag: local
+    pullPolicy: IfNotPresent
+  containerPort: 3000
+  service:
+    port: 80
+  env:
+    nodeEnv: production
+    appVersion: v1-local
+    corsOrigin: https://task-manager.127.0.0.1.sslip.io
+    dbPoolMax: 10
+    dbIdleTimeoutMs: 30000
+    dbConnectionTimeoutMs: 5000
+    dbInitRetryDelayMs: 3000
+    maxUploadSizeBytes: 5242880
+  persistence:
+    enabled: true
+    existingClaim: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi
+    storageClass: hostpath
+    mountPath: /usr/src/app/uploads
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 75
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  podSecurityContext:
+    fsGroup: 1000
+    fsGroupChangePolicy: OnRootMismatch
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+  probes:
+    liveness:
+      path: /api/health/live
+      initialDelaySeconds: 15
+      periodSeconds: 10
+    readiness:
+      path: /api/health/ready
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    startup:
+      path: /api/health/live
+      failureThreshold: 60
+      periodSeconds: 5
+
+frontend:
+  replicaCount: 2
+  image:
+    repository: chamine/taskmanager-frontend
+    tag: stable-local
+    pullPolicy: IfNotPresent
+  containerPort: 8080
+  service:
+    port: 80
+  variant: stable
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  podSecurityContext:
+    fsGroup: 101
+    fsGroupChangePolicy: OnRootMismatch
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    runAsUser: 101
+    runAsGroup: 101
+  probes:
+    path: /healthz
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  ab:
+    enabled: true
+    image:
+      repository: chamine/taskmanager-frontend
+      tag: canary-local
+      pullPolicy: IfNotPresent
+    replicaCount: 1
+    variant: canary
+    weightStable: 80
+    weightCanary: 20
+
+database:
+  clusterName: ""
+  imageName: chamine/cloudnative-pg-postgresql-local:16.4
+  instances: 3
+  storage:
+    size: 5Gi
+    storageClass: hostpath
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  monitoring:
+    enablePodMonitor: true
+  bootstrap:
+    database: taskdb
+    owner: taskapp
+    username: taskapp
+    password: password
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations: {}
+  host: task-manager.127.0.0.1.sslip.io
+  path: /
+  pathType: Prefix
+  tls:
+    enabled: true
+    secretName: task-manager-local-tls
+
+certManager:
+  enabled: true
+  issuerRef:
+    name: selfsigned-clusterissuer
+    kind: ClusterIssuer
+
+flagger:
+  enabled: true
+  provider: traefik
+  api:
+    host: api.task-manager.127.0.0.1.sslip.io
+    tls:
+      secretName: task-manager-api-tls
+  autoscaler:
+    primaryMinReplicas: 2
+    primaryMaxReplicas: 8
+  progressDeadlineSeconds: 120
+  analysis:
+    interval: 30s
+    threshold: 5
+    maxWeight: 50
+    stepWeight: 10
+    requestSuccessRateMin: 99
+    requestDurationMax: 500
+  webhooks:
+    acceptanceTestTimeout: 10s
+    loadTestTimeout: 15s
+    loadTestDuration: 2m
+    loadTestQueriesPerSecond: 10
+    loadTestConcurrency: 2
+  loadTester:
+    name: flagger-loadtester
+
+monitoring:
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+    labels:
+      release: kube-prometheus-stack
+
+networkPolicy:
+  enabled: true
+  ingressControllerNamespaces:
+    - traefik
+  monitoringNamespaces:
+    - monitoring
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -1,0 +1,28 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "task-manager.db.clusterName" . }}
+  namespace: {{ include "task-manager.namespace" . }}
+  labels:
+    {{- include "task-manager.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+spec:
+  imageName: {{ .Values.database.imageName | quote }}
+  instances: {{ .Values.database.instances }}
+  enableSuperuserAccess: false
+  primaryUpdateStrategy: unsupervised
+  storage:
+    size: {{ .Values.database.storage.size }}
+    {{- if .Values.database.storage.storageClass }}
+    storageClass: {{ .Values.database.storage.storageClass }}
+    {{- end }}
+  bootstrap:
+    initdb:
+      database: {{ .Values.database.bootstrap.database | quote }}
+      owner: {{ .Values.database.bootstrap.owner | quote }}
+      secret:
+        name: {{ include "task-manager.secretName" . }}
+  resources:
+    {{- toYaml .Values.database.resources | nindent 4 }}
+  monitoring:
+    enablePodMonitor: {{ .Values.database.monitoring.enablePodMonitor }}
